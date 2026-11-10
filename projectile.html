@@ -1,0 +1,76 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Projectiles | Learn with Mr. N. Vithushan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head><body><div class="wrap">
+<header class="top"><a href="index.html">← Learn with Mr. N. Vithushan</a></header>
+<h1 class="title">Projectile motion</h1>
+<canvas class="banner" data-anim="proj"></canvas>
+<p class="note">Launch from the top of a tower and compare the ideal path (dashed) with the path including air resistance. Set the drag coefficient to 0 for no air resistance.</p>
+<div class="lab">
+<div class="panel">
+<label>Launch speed v₀ (m/s)<input id="v" value="25"></label>
+<label>Launch angle θ (degrees above horizontal)<input id="th" value="45"></label>
+<label>Launch height h₀ (m)<input id="h" value="10"></label>
+<label>g (m/s²)<input id="g" value="9.81"></label>
+<label>Mass m (kg)<input id="m" value="0.2"></label>
+<label>Drag coefficient C<sub>d</sub> (0 = none)<input id="cd" value="0"></label>
+<label>Cross-section area A (m²)<input id="A" value="0.004"></label>
+<label>Air density ρ (kg/m³)<input id="rho" value="1.225"></label>
+<div class="row"><button id="play">▶ Play</button><button class="alt" id="reset">Reset</button><button class="alt" id="pause">⏸ Pause</button></div>
+<p class="note" id="msg"></p></div>
+<div><canvas id="cv"></canvas>
+<div class="panel" style="margin-top:14px"><h3>Results</h3><table id="res"></table></div></div></div>
+<div class="panel" style="margin-bottom:60px"><h3>References</h3><ul class="note">
+<li>OpenStax, <i>University Physics Volume 1</i>, Chapter 4 “Motion in Two and Three Dimensions” (projectile motion); Chapter 6 (drag force).</li>
+<li>Halliday, Resnick &amp; Walker, <i>Fundamentals of Physics</i>, Chapter 4.</li>
+<li>Press et al., <i>Numerical Recipes</i>, section on Runge–Kutta methods.</li></ul></div></div>
+<script src="site.js"></script>
+<script>
+const $=id=>document.getElementById(id),cv=$('cv'),x=cv.getContext('2d'),D=Math.PI/180,f=n=>n.toFixed(2);
+let S=null,raf=null;
+const P=()=>({v:+$('v').value,th:+$('th').value,h:+$('h').value,g:+$('g').value,m:+$('m').value,cd:+$('cd').value,A:+$('A').value,rho:+$('rho').value});
+const good=q=>Object.values(q).every(n=>isFinite(n)&&n>=0)&&q.g>0&&q.m>0&&q.th<=90&&q.v+q.h>0;
+function ideal(q){const vx=q.v*Math.cos(q.th*D),vy=q.v*Math.sin(q.th*D),T=(vy+Math.sqrt(vy*vy+2*q.g*q.h))/q.g;
+return{vx,vy,T,R:vx*T,H:q.h+(vy>0?vy*vy/(2*q.g):0),tp:Math.max(vy/q.g,0),vi:Math.hypot(vx,vy-q.g*T),ang:Math.atan2(q.g*T-vy,vx)/D}}
+function sim(q,I){const k=.5*q.rho*q.cd*q.A/q.m,dt=Math.max(2e-4,Math.min(.005,I.T/3000));
+const F=s=>{const p=Math.hypot(s[2],s[3]);return[s[2],s[3],-k*p*s[2],-q.g-k*p*s[3]]},add=(s,e,h)=>s.map((v,i)=>v+e[i]*h);
+let s=[0,q.h,I.vx,I.vy],t=0,H=q.h,tp=0;const pts=[[0,0,q.h,s[2],s[3]]];
+for(let i=0;i<600000;i++){const k1=F(s),k2=F(add(s,k1,dt/2)),k3=F(add(s,k2,dt/2)),k4=F(add(s,k3,dt));
+const n=s.map((v,j)=>v+dt/6*(k1[j]+2*k2[j]+2*k3[j]+k4[j]));
+if(n[1]<0){const fr=s[1]/(s[1]-n[1]||1);const e=s.map((v,j)=>v+(n[j]-v)*fr);t+=dt*fr;pts.push([t,e[0],0,e[2],e[3]]);s=e;break}
+s=n;t+=dt;if(s[1]>H){H=s[1];tp=t}pts.push([t,s[0],s[1],s[2],s[3]])}
+const L=pts[pts.length-1];return{pts,dt,T:L[0],R:L[1],H,tp,vi:Math.hypot(L[3],L[4]),ang:Math.atan2(-L[4],L[3])/D}}
+function setup(){cancelAnimationFrame(raf);const q=P();if(!good(q)){$('res').innerHTML='<tr><td>Enter valid numbers (θ from 0 to 90, values not negative).</td></tr>';S=null;draw();return}
+const I=ideal(q),M=sim(q,I);S={q,I,M,ts:0,run:false};
+const r=(n,a,b,u)=>`<tr><td>${n}</td><td class="f">${f(a)} ${u}</td><td class="f">${f(b)} ${u}</td></tr>`;
+$('res').innerHTML='<tr><th>Quantity</th><th>No air resistance</th><th>Your settings</th></tr>'+r('Time of flight',I.T,M.T,'s')+r('Range',I.R,M.R,'m')+r('Maximum height',I.H,M.H,'m')+r('Time to maximum height',I.tp,M.tp,'s')+r('Impact speed',I.vi,M.vi,'m/s')+r('Impact angle below horizontal',I.ang,M.ang,'°');
+$('msg').textContent=q.cd>0?'Solid path: with air resistance. Dashed: ideal.':'';draw()}
+const nice=v=>{const e=10**Math.floor(Math.log10(v)),m=v/e;return(m<1.5?1:m<3.5?2:m<7.5?5:10)*e};
+function arrow(x0,y0,dx,dy,c){const d=devicePixelRatio,l=Math.hypot(dx,dy);if(l<3)return;const a=Math.atan2(dy,dx);x.strokeStyle=x.fillStyle=c;x.lineWidth=2*d;x.beginPath();x.moveTo(x0,y0);x.lineTo(x0+dx,y0+dy);x.stroke();
+x.beginPath();x.moveTo(x0+dx,y0+dy);x.lineTo(x0+dx-8*d*Math.cos(a-.4),y0+dy-8*d*Math.sin(a-.4));x.lineTo(x0+dx-8*d*Math.cos(a+.4),y0+dy-8*d*Math.sin(a+.4));x.fill()}
+function draw(){const d=devicePixelRatio,W=cv.width=cv.clientWidth*d,H=cv.height=cv.clientHeight*d;x.clearRect(0,0,W,H);if(!S)return;
+const{q,I,M}=S,xm=Math.max(I.R,M.R,1)*1.08,ym=Math.max(I.H,M.H,1)*1.2,s=Math.min((W-90*d)/xm,(H-80*d)/ym),ox=50*d,gy=H-45*d;
+x.font=11*d+'px IBM Plex Sans';x.fillStyle='#8e98c0';x.strokeStyle='#1c2447';x.lineWidth=d;
+const sx=nice(xm/6),sy=nice(ym/5);
+for(let v=0;v<=xm;v+=sx){x.beginPath();x.moveTo(ox+v*s,gy);x.lineTo(ox+v*s,gy-ym*s);x.stroke();x.fillText(v,ox+v*s-6*d,gy+16*d)}
+for(let v=0;v<=ym;v+=sy){x.beginPath();x.moveTo(ox,gy-v*s);x.lineTo(ox+xm*s,gy-v*s);x.stroke();x.fillText(v,ox-30*d,gy-v*s+4*d)}
+x.fillText('distance (m)',ox+xm*s/2-30*d,gy+34*d);x.fillText('height (m)',6*d,16*d);
+x.fillStyle='#16306b';x.fillRect(0,gy,W,H-gy);x.fillStyle='#5ad1e6';x.fillRect(0,gy-1,W,2*d);
+x.setLineDash([5*d,5*d]);x.strokeStyle='#8e98c0';x.lineWidth=1.5*d;x.beginPath();
+for(let i=0;i<=120;i++){const t=I.T*i/120;x.lineTo(ox+I.vx*t*s,gy-(q.h+I.vy*t-.5*q.g*t*t)*s)}x.stroke();x.setLineDash([]);
+// tower and barrel
+x.fillStyle='#2a3566';x.fillRect(ox-12*d,gy-q.h*s,12*d,q.h*s);
+x.strokeStyle='#e8ebf7';x.lineWidth=5*d;x.lineCap='round';x.beginPath();x.moveTo(ox,gy-q.h*s);x.lineTo(ox+26*d*Math.cos(q.th*D),gy-q.h*s-26*d*Math.sin(q.th*D));x.stroke();x.lineCap='butt';
+const idx=Math.min(Math.floor(S.ts/M.dt),M.pts.length-1),end=S.ts>=M.T,i2=end?M.pts.length-1:idx,pt=M.pts[i2];
+x.strokeStyle='#5ad1e6';x.lineWidth=2.5*d;x.beginPath();const st=Math.max(1,Math.floor(i2/600));for(let i=0;i<=i2;i+=st){const p=M.pts[i];x.lineTo(ox+p[1]*s,gy-p[2]*s)}x.lineTo(ox+pt[1]*s,gy-pt[2]*s);x.stroke();
+const bx=ox+pt[1]*s,by=gy-pt[2]*s;
+arrow(bx,by,Math.min(pt[3]*4*d,90*d),0,'#ffb454');arrow(bx,by,0,Math.max(Math.min(-pt[4]*4*d,90*d),-90*d),'#ff8a7a');
+x.fillStyle='#ffb454';x.shadowColor='#ffb454';x.shadowBlur=14*d;x.beginPath();x.arc(bx,by,7*d,0,7);x.fill();x.shadowBlur=0;
+x.fillStyle='#e8ebf7';x.font=13*d+'px IBM Plex Sans';const tt=end?M.T:S.ts;
+x.fillText(`t = ${f(tt)} s   x = ${f(pt[1])} m   y = ${f(pt[2])} m   speed = ${f(Math.hypot(pt[3],pt[4]))} m/s`,ox+10*d,gy-ym*s+14*d);
+x.font=11*d+'px IBM Plex Sans';x.fillStyle='#ffb454';x.fillText('vₓ',bx+Math.min(pt[3]*4*d,90*d)+4*d,by-4*d);x.fillStyle='#ff8a7a';x.fillText('v_y',bx+6*d,by-Math.max(Math.min(pt[4]*4*d,90*d),-90*d))}
+function play(){setup();if(!S)return;S.run=true;const k=S.M.T>8?S.M.T/8:1;let last=performance.now();
+(function loop(n){const dt=Math.min((n-last)/1000,.05)*k;last=n;if(window.simPaused){raf=requestAnimationFrame(loop);return}S.ts+=dt;draw();if(S.ts<S.M.T)raf=requestAnimationFrame(loop);else{S.run=false;draw()}})(last)}
+['v','th','h','g','m','cd','A','rho'].forEach(i=>$(i).oninput=setup);
+$('play').onclick=play;$('reset').onclick=setup;addEventListener('resize',draw);setup();
+</script></body></html>
