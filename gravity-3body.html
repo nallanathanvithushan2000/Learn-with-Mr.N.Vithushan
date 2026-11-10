@@ -1,0 +1,101 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gravitational force (3 bodies) | Learn with Mr.N.Vithushan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head><body><div class="wrap">
+<header class="top"><a href="index.html">← Learn with Mr.N.Vithushan</a></header>
+<h1>Gravitational force between three bodies</h1>
+<p class="note">Newton's law: <span class="f">F = G·m₁·m₂ / r²</span>. Distances are measured between centres of mass. Change any value, then press Play to drop the ball.</p>
+<div class="lab">
+<div class="panel">
+<label>Planet preset<select id="pre"><option value="5.972e24,6.371e6">Earth</option><option value="7.342e22,1.7374e6">Moon</option><option value="6.417e23,3.3895e6">Mars</option></select></label>
+<label>Planet mass M (kg)<input id="M" value="5.972e24"></label>
+<label>Planet radius R (m)<input id="R" value="6.371e6"></label>
+<label>Ball mass m (kg)<input id="m" value="1"></label>
+<label>Ball height h above surface (m)<input id="h" value="50"></label>
+<label>Person mass p (kg)<input id="p" value="70"></label>
+<label>Person distance l from ball's vertical line (m)<input id="l" value="5"></label>
+<p class="note">Person's centre of gravity is 1 m above the surface.</p>
+<div class="row"><button id="play">▶ Play</button><button class="alt" id="reset">Reset</button></div>
+<div class="stat"><div>Fall time<b id="tt">–</b></div><div>Impact speed<b id="vv">–</b></div></div>
+</div>
+<div><canvas id="cv"></canvas>
+<div class="panel" style="margin-top:14px"><h3>Results</h3><table id="res"></table><p class="note" id="eq"></p></div></div>
+</div>
+<div class="panel" style="margin-bottom:60px"><h3>How it is calculated</h3>
+<p>Geometry: Earth centre → ball = <code>R + h</code>. Earth centre → person's centre of gravity = <code>R + 1</code>. Ball → person = <code>√(l² + (h − 1)²)</code>. Each pair attracts with equal and opposite forces (Newton's third law). During the drop the program adds the pulls of Earth and the person on the ball and integrates the motion step by step (velocity Verlet), so gravity grows slightly as the ball falls.</p>
+<h3>References</h3><ul class="note">
+<li>I. Newton, <i>Philosophiæ Naturalis Principia Mathematica</i> (1687), Book III: law of universal gravitation.</li>
+<li>CODATA 2018 recommended value, G = 6.67430 × 10⁻¹¹ m³ kg⁻¹ s⁻² (NIST).</li>
+<li>NASA Planetary Fact Sheets: masses and mean radii of Earth, Moon and Mars.</li>
+<li>OpenStax, <i>University Physics Volume 1</i>, Chapter 13 “Gravitation”.</li>
+<li>Halliday, Resnick &amp; Walker, <i>Fundamentals of Physics</i>, Chapter 13.</li></ul></div></div>
+<script>
+const G=6.6743e-11,$=id=>document.getElementById(id),cv=$('cv'),x=cv.getContext('2d');
+const v=id=>parseFloat($(id).value);
+const sci=n=>n.toExponential(3).replace('e',' × 10^').replace('^+','^');
+let S=null,raf=null;
+function inputs(){return{M:v('M'),R:v('R'),m:v('m'),h:v('h'),p:v('p'),l:v('l')}}
+function forces(q){const rEB=q.R+q.h,rEP=q.R+1,rBP=Math.hypot(q.l,q.h-1);
+return{rEB,rEP,rBP,FEB:G*q.M*q.m/rEB**2,FEP:G*q.M*q.p/rEP**2,FBP:G*q.m*q.p/rBP**2}}
+function table(){const q=inputs();if(Object.values(q).some(n=>!isFinite(n)||n<0)||q.R<=0){$('res').innerHTML='<tr><td>Enter valid positive numbers.</td></tr>';return false}
+const f=forces(q);
+$('res').innerHTML=`<tr><th>Pair</th><th>Distance (m)</th><th>Force (N)</th></tr>
+<tr><td>Planet – Ball</td><td>${sci(f.rEB)}</td><td class="f">${sci(f.FEB)}</td></tr>
+<tr><td>Planet – Person</td><td>${sci(f.rEP)}</td><td class="f">${sci(f.FEP)}</td></tr>
+<tr><td>Ball – Person</td><td>${sci(f.rBP)}</td><td class="f">${sci(f.FBP)}</td></tr>`;
+$('eq').textContent=`Planet–Ball: G·M·m/(R+h)² = ${sci(G)} × ${sci(q.M)} × ${sci(q.m)} / (${sci(f.rEB)})² = ${sci(f.FEB)} N.  Ball–Person is ${(f.FEB/f.FBP).toExponential(2)} times weaker.`;
+return true}
+function reset(){cancelAnimationFrame(raf);if(!table())return;const q=inputs();
+S={q,y:q.R+q.h,vy:0,t:0,done:false,x:0};$('tt').textContent='–';$('vv').textContent='–';draw()}
+function acc(y,q){const px=q.l,py=q.R+1,dx=px,dy=py-y,r=Math.hypot(dx,dy);
+const aE=-G*q.M/y**2;return{ax:G*q.p*dx/r**3,ay:aE+G*q.p*dy/r**3}}
+function step(dt){const q=S.q;let a=acc(S.y,q);
+S.y+=S.vy*dt+.5*a.ay*dt*dt;S.x+=0.5*a.ax*dt*dt+S.vx*dt;const b=acc(S.y,q);S.vy+=.5*(a.ay+b.ay)*dt;S.vx+=.5*(a.ax+b.ax)*dt;S.t+=dt}
+function play(){reset();if(!S)return;const q=S.q;S.vx=0;
+const tEst=Math.sqrt(2*q.h/(G*q.M/q.R**2)),k=tEst>5?tEst/5:1;let last=performance.now();
+(function loop(now){let d=Math.min((now-last)/1000,.05)*k;last=now;const n=Math.max(1,Math.ceil(d/0.01));
+for(let i=0;i<n&&!S.done;i++){step(d/n);if(S.y<=q.R){S.y=q.R;S.done=true}}
+draw();if(S.done){$('tt').textContent=S.t.toFixed(3)+' s';$('vv').textContent=Math.abs(S.vy).toFixed(2)+' m/s';return}
+raf=requestAnimationFrame(loop)})(last)}
+function person(px,gy,H,d){x.save();x.lineCap='round';x.lineJoin='round';
+const w=H*.11;
+// legs
+x.strokeStyle='#2a3566';x.lineWidth=w*.95;x.beginPath();x.moveTo(px-w*.5,gy-H*.45);x.lineTo(px-w*.6,gy-H*.04);x.moveTo(px+w*.5,gy-H*.45);x.lineTo(px+w*.6,gy-H*.04);x.stroke();
+// shoes
+x.strokeStyle='#e8ebf7';x.lineWidth=w*.7;x.beginPath();x.moveTo(px-w*.9,gy-H*.015);x.lineTo(px-w*.3,gy-H*.015);x.moveTo(px+w*.3,gy-H*.015);x.lineTo(px+w*.9,gy-H*.015);x.stroke();
+// arms
+x.strokeStyle='#f0c29a';x.lineWidth=w*.6;x.beginPath();x.moveTo(px-w*1.5,gy-H*.78);x.lineTo(px-w*1.9,gy-H*.52);x.moveTo(px+w*1.5,gy-H*.78);x.lineTo(px+w*1.9,gy-H*.52);x.stroke();
+// torso
+const g=x.createLinearGradient(px-w*1.6,0,px+w*1.6,0);g.addColorStop(0,'#2f5fc4');g.addColorStop(1,'#5ad1e6');
+x.fillStyle=g;x.beginPath();x.moveTo(px-w*1.55,gy-H*.8);x.quadraticCurveTo(px,gy-H*.86,px+w*1.55,gy-H*.8);x.lineTo(px+w*1.2,gy-H*.43);x.lineTo(px-w*1.2,gy-H*.43);x.closePath();x.fill();
+// neck + head
+x.fillStyle='#f0c29a';x.fillRect(px-w*.35,gy-H*.88,w*.7,H*.07);
+x.beginPath();x.arc(px,gy-H*.93,H*.075,0,7);x.fill();
+x.fillStyle='#1b1f3a';x.beginPath();x.arc(px,gy-H*.95,H*.077,Math.PI,0);x.fill();
+x.restore()}
+function draw(){const W=cv.width=cv.clientWidth*devicePixelRatio,H=cv.height=cv.clientHeight*devicePixelRatio,d=devicePixelRatio;
+x.clearRect(0,0,W,H);if(!S)return;const q=S.q,gy=H-70*d;
+x.fillStyle='#8e98c0';for(let i=0;i<50;i++){x.fillRect((i*137%100)/100*W,(i*59%100)/100*(gy-10),1.5*d,1.5*d)}
+const s=Math.min((gy-50*d)/Math.max(q.h,3),(W*.4)/Math.max(q.l,1)),bx=W*.2,px=bx+q.l*s,z=S.y-q.R;
+x.fillStyle='#16306b';x.fillRect(0,gy,W,H-gy);x.fillStyle='#5ad1e6';x.fillRect(0,gy,W,2*d);
+x.fillStyle='#e8ebf7';x.font=13*d+'px IBM Plex Sans';x.fillText('Surface of planet (centre is R below)',12*d,gy+24*d);
+const by=gy-z*s;
+// distances
+x.setLineDash([5*d,5*d]);x.strokeStyle='#8e98c0';x.lineWidth=d;
+x.beginPath();x.moveTo(bx,by);x.lineTo(bx,gy);x.stroke();
+const ph=Math.max(1.7*s,60*d),cg=Math.max(1*s,24*d),cy=gy-cg;
+x.strokeStyle='#ffb454';x.beginPath();x.moveTo(bx,by);x.lineTo(px,cy);x.stroke();x.setLineDash([]);
+x.fillStyle='#8e98c0';x.fillText('h = '+(z).toFixed(1)+' m',bx+8*d,(by+gy)/2);
+x.fillStyle='#ffb454';x.fillText('l = '+q.l+' m',(bx+px)/2,gy-8*d);
+// person
+person(px,gy,ph,d);
+x.fillStyle='#ffb454';x.beginPath();x.arc(px,cy,4*d,0,7);x.fill();x.strokeStyle='#080b16';x.lineWidth=d;x.stroke();
+x.fillStyle='#e8ebf7';x.fillText('person (CG = 1 m)',px-40*d,gy-ph-14*d);
+// ball
+x.fillStyle='#5ad1e6';x.shadowColor='#5ad1e6';x.shadowBlur=14*d;x.beginPath();x.arc(bx,by,9*d,0,7);x.fill();x.shadowBlur=0;
+x.fillStyle='#e8ebf7';x.fillText('ball  v = '+Math.abs(S.vy).toFixed(1)+' m/s',bx+16*d,by+4*d);
+x.fillStyle='#8e98c0';x.fillText('Not to scale: person and ball are drawn larger than true size.',12*d,22*d)}
+$('pre').onchange=e=>{const[a,b]=e.target.value.split(',');$('M').value=a;$('R').value=b;reset()};
+['M','R','m','h','p','l'].forEach(i=>$(i).oninput=reset);
+$('play').onclick=play;$('reset').onclick=reset;addEventListener('resize',draw);reset();
+</script></body></html>
